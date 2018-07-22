@@ -1,0 +1,51 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+
+\title{Sony DPT-RP1 Lab Notebook}
+\author{Daniel Eaton}
+\date{7/22/2018}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+This is documentation for a small lab notebook management program based on the Sony DPT-RP1 ''Digital Paper'' tablet. The program currently supports the following features:
+\begin{itemize}
+    \item Combining multiple pdfs into larger pdf files (Journals).
+    \item Associating metadata with entries for easy search.
+    \item Autodetection of handwritten rectangles and image placement.
+    \item Autodetection of pdf additions/deletions from Journals.
+\end{itemize}
+
+\noindent In the future, I wish to add the following features to the program:
+\begin{itemize}
+    \item Table of contents (with entry titles).
+    \item Index section for metadata.
+    \item More effecient compiling (raster only for image-containing pdfs)
+    \item GUI for notebook management.
+\end{itemize}
+
+\section{Installation}
+The python file \textbf{labnotebook.py} and the latex file \textbf{template.tex} provide the basis of this program. Installation of the program, simply consists of moving these files to the right locations and setting up a home directory for your lab notebook. For now, the program may be installed by running \textbf{labnotebook\_installer.py}. Note that the installer will query you for a directory in which to place your lab notebook. If you wish to move your lab notebook in the future, you will have to change the notebookroot variable in \textbf{labnotebook.py} to reflect the new location.\\
+
+The installer will create a folder called \textbf{Lab\_Notebook} within the path that you specified. Within this folder will be the following files:\\
+
+\textbf{labnotebook.py:} Contains the core of the software. Be careful if you try to modify this file.
+\textbf{template.tex:} A latex template that is used by \textbf{labnotebook.py} when generating journal pdfs.
+\textbf{labnotebook.bat/sh:} A batch or bash file which can be run activate the library manager.
+
+\section{Usage}
+
+Using this software revolves around manipulating the \textbf{Lab\_Notebook} directory while the library manager (\textbf{labnotebook.py}) is running in the background. To activate the library manager run \textbf{labnotebook.bat/sh} or simply run \"python labnotebook.py\" from the terminal. While the library manager is active you may perform any of the following actions to edit your journals:\\
+
+\textbf{New Journal:} To make a new journal, simply add a new folder within your \textbf{Lab\_Notebook} directory. This will automatically create a new journal whose name will correspond to the directory's name.\\
+
+\textbf{New Imagenote:} To add a new pdf from the DPT-RP1, add the new pdf to the \textbf{New\_Imagenotes} subdirectory within a journal diretory of your choice. You will be queried for image files to insert at all detected rectangles. Note: this will increase the filesize of these pdfs because they will be converted from a vector to a raster format. Working on a way to make this more effecient.\\
+
+\textbf{New Note:} To add a new pdf which does not come from the DPT-RP1, add the new pdf to the \textbf{New\_Note} subdirectory within a journal diretory of your choice. \\
+
+\textbf{Delete Note:} To delete a pdf from your journal, find the note in the \textbf{Notes} subdirectory and delete it. You can delete more than one note at a time in this manner.
+
+\end{document}

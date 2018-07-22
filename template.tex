@@ -1,0 +1,30 @@
+\documentclass{article}
+\usepackage[utf8]{inputenc}
+\usepackage{pdfpages}
+\usepackage{color}
+\definecolor{bg}{RGB}{255,255,255}
+\newcommand{\addsearchterm}[1]{%
+    \begingroup%
+        \makebox[0pt][l]{\fontsize{3pt}{0pt}\selectfont\color{bg}#1}
+    \endgroup%
+}
+\title{Title}
+\author{Daniel Eaton}
+\begin{document}
+\maketitle
+\includepdf[pages=1,pagecommand={
+    \begin{picture}(5,5)(-310,-135)
+        \large
+        \noindent\makebox[1pt][l]{%
+            \parbox[t]{0.44\textwidth}{
+                \begin{flushleft}
+                    Note: 1\\
+                    Date: 7/20/2018\\
+                    Keywords: Potato, Tomato, o, moo, moo
+                \end{flushleft}
+            }
+        }
+    \end{picture}
+}]{test_output}
+\includepdf[pages=2-]{test_output}
+\end{document}
