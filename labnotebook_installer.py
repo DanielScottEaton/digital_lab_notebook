@@ -14,12 +14,7 @@ class installer():
         self.labnotebookpath = self.targetpath+"/Lab_Notebook/"
         os.mkdir(self.labnotebookpath)
         shutil.copyfile("./template.tex",self.labnotebookpath+"template.tex")
-        with open("./labnotebook.py","r") as infile:
-            template = infile.read().split("\n")
-        template[-5] = '    notebookroot = "' + self.labnotebookpath + '"'
-        outtxt = "\n".join(template)
-        with open(self.labnotebookpath+"labnotebook.py","w") as outfile:
-            outfile.write(outtxt)
+        shutil.copyfile("./labnotebook.py",self.labnotebookpath+"labnotebook.py")
         if self.ostype == "win":
             with open(self.labnotebookpath+"labnotebook.bat","w") as outfile:
                 outfile.write("python labnotebook.py")
