@@ -229,7 +229,10 @@ class latexdoc():
     def addtext(self,newentry,notetitle,keywordlist,date,remove=False): #for text things
         pagenum = len(self.texdict["notes"])
         notename = "note_" + str(pagenum) + ".pdf"
-        shutil.copyfile(self.textsourcepath+newentry,self.notespath+notename)
+        command = 'magick -density 300 -depth 8 -quality 85 "'+ self.textsourcepath+newentry+\
+        '" "' + self.notespath+notename + '"'
+        process = subprocess.Popen(command, shell=True)
+        process.wait()
         ttlpages = self.__checkpages(self.notespath+notename)
         self.texdict["notes"].append({"notetitle":notetitle,"keywords":keywordlist,"date":date,"pages":ttlpages})
         self.__sortbydate()
@@ -297,7 +300,7 @@ class latexdoc():
                 textitle+=item
         texlist = self.template[:20] + \
         ["\\title{"+textitle+"}"] + \
-        self.template[21:24]
+        self.template[21:26]
         for i in range(len(self.texdict["notes"])):
             texlist += self.__latexpage(i)
         texlist += self.template[43:45]
