@@ -1,5 +1,4 @@
 #requires imagemagick to run commands
-#comment this better later
 import sys,os,io
 import subprocess
 from PIL import Image
