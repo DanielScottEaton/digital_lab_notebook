@@ -16,6 +16,7 @@ import pickle as pkl
 import shutil
 from shutil import copyfile
 import time
+import os.path
 class noteimport():
 
     """Imports pdfs from Sony DPT-RP1 and adds images. 
@@ -166,16 +167,21 @@ class noteimport():
             cv2.destroyAllWindows()
         root.destroy()
         self.pypdf_output.addPage(current_page)
-    def compile(self,filename,images=True):
+    def compile(self,filepath,archivepath,images=True):
         """Compiles output pdf, optionally scanning the input pdf for rectangles
         to place images into. This option is intended to be enabled when
         compiling from hadwritten notes.
         
         Args:
-            filename (str): Filepath to write output pdf to.
+            filepath (str): Filepath to write output pdf to.
+            archivepath (str): Filepath to write archived output pdf to.
             images (bool, optional): Option enables image insertion into drawn 
             rectangles when True
         """
+        if os.path.isfile(archivepath):
+            sys.exit("File of the same name already exists in the archive!!!")
+        else:
+            copyfile(self.pdfpath,archivepath)
         if images:
             self.pdf_file_reader_handles = []
             self.__rasterpages()
@@ -183,13 +189,14 @@ class noteimport():
             for i,page in enumerate(self.pages):
                 rectangles = self.__getrectangles(page)
                 self.__maprectangles(page,i,rectangles)
-            with open(filename, "wb") as outfile:
+            with open(filepath, "wb") as outfile:
                 self.pypdf_output.write(outfile)
             self.pypdf_input_filehandle.close()
             for item in self.pdf_file_reader_handles:
                 item.close()
+            shutil.rmtree(self.projectpath + "tempimgs")
         else:
-            copyfile(self.pdfpath,filename)
+            copyfile(self.pdfpath,filepath)
 class latexdoc():
 
     """Class for manipulating lab notebook project folders and compiling into latex master documents.
@@ -225,6 +232,7 @@ class latexdoc():
         self.notesourcepath = self.projectpath+"New_Imagenotes/"
         self.textsourcepath = self.projectpath+"New_Notes/"
         self.notespath = self.projectpath+"Notes/"
+        self.archivepath = self.projectpath+"Archive/"
         with open((self.projectpath+"notebook.pkl"),"rb") as infile:
             self.texdict = pkl.load(infile)
     def newproject(self,title):
@@ -233,12 +241,14 @@ class latexdoc():
         self.notesourcepath = self.projectpath+"New_Imagenotes/"
         self.textsourcepath = self.projectpath+"New_Notes/"
         self.notespath = self.projectpath+"Notes/"
+        self.archivepath = self.projectpath+"Archive/"
         self.texdict = {"title":title,"notes":[]}
         shutil.rmtree(self.projectpath)
         os.mkdir(self.projectpath)
         os.mkdir(self.notesourcepath)
         os.mkdir(self.textsourcepath)
         os.mkdir(self.notespath)
+        os.mkdir(self.archivepath)
         with open((self.projectpath+"notebook.pkl"),"wb") as outfile:
             pkl.dump(self.texdict,outfile)
     def updatetitle(self):
@@ -259,7 +269,7 @@ class latexdoc():
             workingnote = noteimport(self.projectpath,self.notesourcepath+newentry)
         else:
             workingnote = noteimport(self.projectpath,self.textsourcepath+newentry)
-        workingnote.compile(self.notespath+notename,images=images)
+        workingnote.compile(self.notespath+notename,self.archivepath+newentry,images=images)
         del workingnote
         ttlpages = self.__checkpages(self.notespath+notename)
         self.texdict["notes"].append({"notetitle":notetitle,"keywords":keywordlist,"date":date,"pages":ttlpages})
@@ -282,13 +292,16 @@ class latexdoc():
             currentname = "snote_" + str(i) + ".pdf"
             targetname = "note_" + str(i) + ".pdf"
             os.rename(self.notespath+currentname,self.notespath+targetname)
-        self.texdict["notes"] = (np.array(self.texdict["notes"])[ind]).tolist()        
-    def removenote(self,noteindex):
-        ttlnotes = len(self.texdict["notes"])
-        del self.texdict["notes"][noteindex]
-        for i in range(noteindex+1,ttlnotes):
-            currentname = "note_" + str(i) + ".pdf"
-            targetname = "note_" + str(i-1) + ".pdf"
+        self.texdict["notes"] = (np.array(self.texdict["notes"])[ind]).tolist()    
+    def removenotes(self):
+        archive_note_indices = os.listdir(self.notespath)
+        noteinds = [int(note.split("_")[1][:-4]) for note in archive_note_indices]
+        noteinds.sort()
+        self.texdict["notes"] = [item for i,item in enumerate(self.texdict["notes"]) if i in noteinds]
+        for i in range(len(noteinds)):
+            current_ind = noteinds[i]
+            currentname = "note_" + str(current_ind) + ".pdf"
+            targetname = "note_" + str(i) + ".pdf"
             os.rename(self.notespath+currentname,self.notespath+targetname)
         self.__sortbydate()
         with open((self.projectpath+"notebook.pkl"),"wb") as outfile:
@@ -353,7 +366,6 @@ class latexdoc():
 class updateloop():
     def __init__(self,notebookpath):
         self.notebookpath = notebookpath
-        self.uncompiled = True 
     def __keyworddatequery(self):
         root = tkinter.Tk()
         tkinter.Label(root, text="Note Title").grid(row=0)
@@ -365,7 +377,7 @@ class updateloop():
         notetitle.grid(row=0, column=1)
         keywords.grid(row=1, column=1)
         date.grid(row=2, column=1)
-        tkinter.Button(root, text='Done', command=root.quit).grid(row=4, column=0, sticky=tkinter.W, pady=5) ###maybe change pady to 4
+        tkinter.Button(root, text='Done', command=root.quit).grid(row=4, column=0, sticky=tkinter.W, pady=5)
         root.mainloop()
         notetitle = notetitle.get()
         keywords = keywords.get()
@@ -387,17 +399,13 @@ class updateloop():
             dochandle.addnote(item,notetitle,keywords,date,remove=True,images=False)
         del dochandle
     def __checkmissing(self,title):
-        titlepath = self.notebookpath+title+"/"
-        notelist = os.listdir(titlepath+"Notes/")
-        noteinds = [int(note.split("_")[1][:-4]) for note in notelist]
-        for i in range(len(noteinds)):
-            if i not in noteinds:
-                dochandle = latexdoc(self.notebookpath)
-                dochandle.loadproject(title)
-                dochandle.removenote(i)
-                del dochandle
-                return True
-        return False
+        dochandle = latexdoc(self.notebookpath)
+        dochandle.loadproject(title)
+        if len(os.listdir(dochandle.notespath)) != len(dochandle.texdict["notes"]):
+            dochandle.removenotes()
+            return True
+        else:
+            return False
     def __compileall(self,title):
         dochandle = latexdoc(self.notebookpath)
         dochandle.loadproject(title)
@@ -417,8 +425,6 @@ class updateloop():
         #check all folders
         for title in os.listdir(self.notebookpath):
             compilenotes=False
-            if self.uncompiled:
-                compilenotes=True
             titlepath = self.notebookpath+title+"/"
             if not os.path.isdir(titlepath):
                 continue
@@ -431,12 +437,10 @@ class updateloop():
                 self.__checknewnotes(title)
                 compilenotes=True
             missing = self.__checkmissing(title)
-            while missing:
-                missing = self.__checkmissing(title)
+            if missing:
                 compilenotes=True
             if compilenotes:
                 self.__compileall(title)
-        self.uncompiled=False
 
 if __name__ == '__main__':
     notebookroot = "./"
