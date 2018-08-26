@@ -3,6 +3,8 @@
 import sys,os,io
 import subprocess
 from PIL import Image
+from PyPDF2 import PdfFileWriter, PdfFileReader
+from reportlab.pdfgen import canvas
 from matplotlib.pyplot import imshow
 from matplotlib import pyplot as plt
 import cv2
@@ -15,6 +17,7 @@ import shutil
 from shutil import copyfile
 import time
 class noteimport():
+
     """Imports pdfs from Sony DPT-RP1 and adds images. 
     
     This class provides a handle for importing a single multipage pdf of
@@ -24,30 +27,46 @@ class noteimport():
     the user for a image file to insert at that box. This operation expands the
     filesize of the pdf, so for any pdfs where the box finding operation is not
     required, avoid using this class.
-
-    Args:
-        pdfpath {str}: Filepath of the input pdf.
+    
     Attributes:
-        pages {list}: List of image objects corresponding to each page of the input.
-        outpages {list}: List of image objects corresponding to each page of the output.
+        pages (list): Handles for raster versions of pages from imported pdf.
+        pdf_file_reader_handles (list): Handles for pdf temporary files generated from images staged for insertion into the compiled document.
+        pdfpath (str): Filepath to the note being compiled.
+        projectpath (str): Filepath to the journal the note is being compiled into.
+        pypdf_input (PdfFileReader object): PdfFileReader object containing the note being compiled.
+        pypdf_input_filehandle (file): Handle for initial import of the note being compiled.
+        pypdf_output (PdfFileWriter object): PdfFileWriter object for writing the compiled note.
     """
-    def __init__(self,pdfpath):
+
+    def __init__(self,projectpath,pdfpath):
+        """Initial
+        
+        Args:
+            projectpath (str): Filepath to the journal the note is being compiled into.
+            pdfpath (str): Filepath to the note being compiled.
+        """
+        self.projectpath = projectpath
+        self.pdfpath = pdfpath
+    def __rasterpages(self):
+        self.pypdf_input_filehandle = open(self.pdfpath, "rb")
+        self.pypdf_input = PdfFileReader(self.pypdf_input_filehandle)
+        self.pypdf_output = PdfFileWriter()
         self.pages = []
-        self.outpages = []
-        os.mkdir("./tempsplit")
-        command = 'magick -density 300 -depth 8 -quality 85 "' + pdfpath + '" tempsplit/page-%0d.png'
+        temp_folder_path = self.projectpath+"/tempsplit"
+        os.mkdir(temp_folder_path)
+        command = 'magick -density 72 -depth 8 -quality 85 "' + self.pdfpath + '" ' + temp_folder_path + '/page-%0d.png'
         process = subprocess.Popen(command, shell=True)
         process.wait()
-        pagelist = os.listdir("tempsplit/")
+        pagelist = os.listdir(temp_folder_path + "/")
         idxlist = np.array([int(item.split("-")[1][:-4]) for item in pagelist])
         sortlist = np.argsort(idxlist)
         sortedpages = np.array(pagelist)[sortlist].tolist()
         for item in sortedpages:
-            pagepath = "tempsplit/" + item    
+            pagepath = temp_folder_path + "/" + item    
             imgout = Image.open(pagepath,"r")
             imgout = imgout.convert('RGB')
             self.pages.append(imgout)
-        shutil.rmtree("./tempsplit")
+        shutil.rmtree(temp_folder_path)
     #taken from https://www.pyimagesearch.com/2016/02/08/opencv-shape-detection/
     def __isrectangle(self,contour):
         """Detects if a given conntour is a rectangle.
@@ -55,11 +74,11 @@ class noteimport():
         Uses the Douglas-Peucker algorithm to determine the number of vertices
         in the input contour. Calls a rectangle if there are 4 vertices.
         
-        Arguments:
-            contour {contour object} -- A single contour object.
+        Args:
+            contour (contour object): A single contour object.
         
         Returns:
-            bool -- True if the contour is a rectangle.
+            bool: True if the contour is a rectangle.
         """
         peri = cv2.arcLength(contour, True)
         approx = cv2.approxPolyDP(contour, 0.04 * peri, True)
@@ -73,15 +92,13 @@ class noteimport():
         Displays a detected rectangle to the user and asks the user if they
         would like to place an image at that rectangle.
         
-        Arguments:
-            background {array} -- Numpy array of the background image.
-            rect {list} -- List of coordinates specifying a rectangle [x,y,w,h].
-        
-        Keyword Arguments:
-            xdim {number} -- Width of the preview image. (default: {700})
+        Args:
+            background (numpy array): Numpy array of the background image.
+            rect (list): List of coordinates specifying a rectangle [x,y,w,h].
+            xdim (int, optional): Width of the preview image. Default: 700
         
         Returns:
-            bool -- True if user wants to place an image.
+            bool: True if user wants to place an image.
         """
         a = xdim/background.size[0]
         resized = background.resize((int(background.size[0]*a),int(background.size[1]*a)))
@@ -98,15 +115,12 @@ class noteimport():
         Detects all rectangles in the input image and records their coordinates
         as a list of [x,y,w,h] lists.
         
-        Arguments:
-            background {image object} -- PIL image object of the background image.
-        
-        Keyword Arguments:
-            rectanglesize {number} -- Lower bound on the allowed internal area
-            of detected rectangles. (default: {100000})
-        
+        Args:
+            background (image object): PIL image object of the background image.
+            rectanglesize (int, optional): Lower bound on the allowed internal area
+            of detected rectangles. Default: 100000
         Returns:
-            list -- List of rectangle coordinates [x,y,w,h].
+            list: List of rectangle coordinates [x,y,w,h].
         """
         background = cv2.cvtColor(np.array(background),cv2.COLOR_BGR2GRAY)
         thresh = cv2.threshold(background,100,255,1)[1]
@@ -119,65 +133,90 @@ class noteimport():
                     x,y,w,h = cv2.boundingRect(cnt)
                     rectangles.append([int(x),int(y),int(w),int(h)])
         return rectangles
-    def __maprectangles(self,background,rectangles):
+    def __maprectangles(self,pageimage,pagenum,rectangles):
         """Places images in detected rectangles.
         
-        Given an image and a list of detected rectangles, places images
-        in each of these rectangles. For each rectangle, will query the 
+        Given an page image, a page number, and a list of detected rectangles, places images
+        in each of these rectangles in the pdf. For each rectangle, will query the 
         user for confirmation and a image filepath.
         
-        Arguments:
-            background {array} -- Numpy array of the background image. 
-            rectangles {list} -- List of rectangle coordinates [x,y,w,h].
-        
-        Returns:
-            array -- Numpy array of the background image, with added images.
+        Args:
+            pageimage (numpy array): Numpy array of the page image.
+            pagenum (int): Current page number.
+            rectangles (list): List of rectangle coordinates [x,y,w,h].
         """
+        current_page = self.pypdf_input.getPage(pagenum)
         root = tkinter.Tk()
-        for rect in rectangles:
-            usercheck = self.__previewrectangle(background,rect)
+        for j,rect in enumerate(rectangles):
+            usercheck = self.__previewrectangle(pageimage,rect)
             if usercheck:
                 targetpath = tkinter.filedialog.askopenfilename(parent=root, initialdir='~', title='Please select a file.')
                 targetim = Image.open(targetpath,"r")
                 targetim = targetim.convert('RGB')
                 targetim = targetim.resize((rect[2],rect[3]))
-                background.paste(targetim,(rect[0],rect[1]))
+                targetim.save(self.projectpath + "tempresized.png")
+                with open(self.projectpath + "tempimgs/imgpdf_"+str(pagenum)+"_"+str(j)+".pdf","wb") as outfile:
+                    imgpdf = canvas.Canvas(outfile)
+                    imgpdf.drawImage(self.projectpath + "/tempresized.png",rect[0],792 - rect[1] - rect[3])
+                    imgpdf.save()
+                self.pdf_file_reader_handles.append(open(self.projectpath + "tempimgs/imgpdf_"+str(pagenum)+"_"+str(j)+".pdf","rb"))
+                openimgpdf = PdfFileReader(self.pdf_file_reader_handles[-1])
+                current_page.mergePage(openimgpdf.getPage(0))
+                os.remove(self.projectpath + "tempresized.png")
             cv2.destroyAllWindows()
         root.destroy()
-        return background
-    def addimages(self):
-        """Adds images to all pages.
-        s
-        For each page in self.pages, detects all rectangles in those images,
-        queries the user for images to place in those rectangles, and dumps
-        the results in self.outpages.
-        """
-        for page in self.pages:
-            rectangles = self.__getrectangles(page)
-            self.outpages.append(self.__maprectangles(page,rectangles))
-    def saveimages(self,filename):
-        """Saves the images in self.outpages as pdfs.
+        self.pypdf_output.addPage(current_page)
+    def compile(self,filename,images=True):
+        """Compiles output pdf, optionally scanning the input pdf for rectangles
+        to place images into. This option is intended to be enabled when
+        compiling from hadwritten notes.
         
-        Given an output filepath, saves all images in self.outpages as
-        a single pdf at that path.
-        
-        Arguments:
-            filename {str} -- Filepath for saving the output pdf.
+        Args:
+            filename (str): Filepath to write output pdf to.
+            images (bool, optional): Option enables image insertion into drawn 
+            rectangles when True
         """
-        os.mkdir("./temp")
-        filelist = []
-        for i,page in enumerate(self.outpages):
-            page.save("./temp/" + str(i) + ".pdf", "PDF", resolution=72)
-            filelist.append(str(i)+".pdf")
-        command = "magick -density 72 -depth 8 -quality 85"
-        for item in filelist:
-            command+=(" ./temp/" + item)
-        command+=(" "+filename)
-        process = subprocess.Popen(command, shell=True)
-        process.wait()
-        shutil.rmtree("./temp")
-
+        if images:
+            self.pdf_file_reader_handles = []
+            self.__rasterpages()
+            os.mkdir(self.projectpath + "tempimgs")
+            for i,page in enumerate(self.pages):
+                rectangles = self.__getrectangles(page)
+                self.__maprectangles(page,i,rectangles)
+            with open(filename, "wb") as outfile:
+                self.pypdf_output.write(outfile)
+            self.pypdf_input_filehandle.close()
+            for item in self.pdf_file_reader_handles:
+                item.close()
+        else:
+            copyfile(self.pdfpath,filename)
 class latexdoc():
+
+    """Class for manipulating lab notebook project folders and compiling into latex master documents.
+    
+    This class provides a handle for managing lab notebook project folders. Possesses
+    functions for creating new project folders and updating old ones. Subfunctions
+    for compiling new notes, metadata and writing master latex files are included.
+    Intended for compiling standard pdf files as well as handwritten notes generated
+    by the Sony DPT-RP1. Generates master pdfs with all compiled documents, table of
+    contents, and an index, sorted by date.
+    
+    Attributes:
+        notebookpath (str): Filepath of master notebook folder containing all journals.
+        notesourcepath (str): Filepath of note folder containing notes staged for compiling with
+        rectangle detection. Intended for handwritten notes needing image insertion.
+        notespath (str): Filepath of note archive containing all notes that have already been compiled.
+        Filenames in this folder are ordered by date.
+        projectpath (str): Filepath of target journal folder. 
+        template (list): List of strings corresponding to lines of template .tex document which
+        specifies the standard format of the output latex document.
+        texdict (dict): Dictionary containing the title and page metadata of the target journal.
+        Saved as notebook.pkl pickle file in the target journal directory folder.
+        textsourcepath (str): Filepath of note folder containing notes staged for compiling without
+        rectangle detection.
+        title (str): Title of target journal. Same as the journal foldername.
+    """
+
     def __init__(self,notebookpath):
         self.notebookpath = notebookpath
     def loadproject(self,title):
@@ -213,33 +252,25 @@ class latexdoc():
         line = process.stdout.readline()
         pagenum = int(line.decode('utf-8').split()[1])
         return pagenum
-    def addnote(self,newentry,notetitle,keywordlist,date,remove=False): #for handwritten things
+    def addnote(self,newentry,notetitle,keywordlist,date,remove=False,images=False): #for handwritten things
         pagenum = len(self.texdict["notes"])
         notename = "note_" + str(pagenum) + ".pdf"
-        workingnote = noteimport(self.notesourcepath+newentry)
-        workingnote.addimages()
-        workingnote.saveimages(self.notespath+notename)
+        if images:
+            workingnote = noteimport(self.projectpath,self.notesourcepath+newentry)
+        else:
+            workingnote = noteimport(self.projectpath,self.textsourcepath+newentry)
+        workingnote.compile(self.notespath+notename,images=images)
+        del workingnote
         ttlpages = self.__checkpages(self.notespath+notename)
         self.texdict["notes"].append({"notetitle":notetitle,"keywords":keywordlist,"date":date,"pages":ttlpages})
         self.__sortbydate()
         with open((self.projectpath+"notebook.pkl"),"wb") as outfile:
             pkl.dump(self.texdict,outfile)
         if remove:
-            os.remove(self.notesourcepath+newentry)
-    def addtext(self,newentry,notetitle,keywordlist,date,remove=False): #for text things
-        pagenum = len(self.texdict["notes"])
-        notename = "note_" + str(pagenum) + ".pdf"
-        command = 'magick -density 300 -depth 8 -quality 85 "'+ self.textsourcepath+newentry+\
-        '" "' + self.notespath+notename + '"'
-        process = subprocess.Popen(command, shell=True)
-        process.wait()
-        ttlpages = self.__checkpages(self.notespath+notename)
-        self.texdict["notes"].append({"notetitle":notetitle,"keywords":keywordlist,"date":date,"pages":ttlpages})
-        self.__sortbydate()
-        with open((self.projectpath+"notebook.pkl"),"wb") as outfile:
-            pkl.dump(self.texdict,outfile)
-        if remove:
-            os.remove(self.textsourcepath+newentry)
+            if images:
+                os.remove(self.notesourcepath+newentry)
+            else:
+                os.remove(self.textsourcepath+newentry)
     def __sortbydate(self):
         datearr = np.array([np.array(item["date"].split("/")) for item in self.texdict["notes"]]).T
         ind = np.lexsort((datearr[1],datearr[0],datearr[2]))
@@ -277,7 +308,7 @@ class latexdoc():
         return full
     def __errormsg(self,message):
         root = tkinter.Tk()
-        tkinter.Label(root, text=Message).grid(row=0)
+        tkinter.Label(root, text=message).grid(row=0)
         tkinter.Button(root, text='Done', command=root.quit).grid(row=3, column=0, sticky=tkinter.W, pady=4)
         root.mainloop()
         root.destroy()
@@ -349,11 +380,11 @@ class updateloop():
         for item in os.listdir(titlepath+"New_Imagenotes/"):
             newitem=True
             notetitle,keywords,date = self.__keyworddatequery()
-            dochandle.addnote(item,notetitle,keywords,date,remove=True)
+            dochandle.addnote(item,notetitle,keywords,date,remove=True,images=True)
         for item in os.listdir(titlepath+"New_Notes/"):
             newitem=True
             notetitle,keywords,date = self.__keyworddatequery()
-            dochandle.addtext(item,notetitle,keywords,date,remove=True)
+            dochandle.addnote(item,notetitle,keywords,date,remove=True,images=False)
         del dochandle
     def __checkmissing(self,title):
         titlepath = self.notebookpath+title+"/"
@@ -411,5 +442,5 @@ if __name__ == '__main__':
     notebookroot = "./"
     uploop = updateloop(notebookroot)
     while True:
-        uploop.update()
         time.sleep(1.)
+        uploop.update()
