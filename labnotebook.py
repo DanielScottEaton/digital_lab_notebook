@@ -224,8 +224,18 @@ class latexdoc():
     """
 
     def __init__(self,notebookpath):
+        """Summary
+        
+        Args:
+            notebookpath (TYPE): Description
+        """
         self.notebookpath = notebookpath
     def loadproject(self,title):
+        """Summary
+        
+        Args:
+            title (TYPE): Description
+        """
         self.title = title
         self.projectpath = self.notebookpath+title+"/"
         self.notesourcepath = self.projectpath+"New_Imagenotes/"
@@ -235,6 +245,11 @@ class latexdoc():
         with open((self.projectpath+"notebook.pkl"),"rb") as infile:
             self.texdict = pkl.load(infile)
     def newproject(self,title):
+        """Summary
+        
+        Args:
+            title (TYPE): Description
+        """
         self.title = title
         self.projectpath = self.notebookpath+title+"/"
         self.notesourcepath = self.projectpath+"New_Imagenotes/"
@@ -251,10 +266,20 @@ class latexdoc():
         with open((self.projectpath+"notebook.pkl"),"wb") as outfile:
             pkl.dump(self.texdict,outfile)
     def updatetitle(self):
+        """Summary
+        """
         self.texdict["title"] = self.title
         with open((self.projectpath+"notebook.pkl"),"wb") as outfile:
             pkl.dump(self.texdict,outfile)
     def __checkpages(self,pdfpath):
+        """Summary
+        
+        Args:
+            pdfpath (TYPE): Description
+        
+        Returns:
+            TYPE: Description
+        """
         command = "pdfinfo " + pdfpath + " | grep -a Pages: "
         process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE)
         process.wait()
@@ -262,6 +287,16 @@ class latexdoc():
         pagenum = int(line.decode('utf-8').split()[1])
         return pagenum
     def addnote(self,newentry,notetitle,keywordlist,date,remove=False,images=False): #for handwritten things
+        """Summary
+        
+        Args:
+            newentry (TYPE): Description
+            notetitle (TYPE): Description
+            keywordlist (TYPE): Description
+            date (TYPE): Description
+            remove (bool, optional): Description
+            images (bool, optional): Description
+        """
         pagenum = len(self.texdict["notes"])
         notename = "note_" + str(pagenum) + ".pdf"
         if images:
@@ -281,6 +316,8 @@ class latexdoc():
             else:
                 os.remove(self.textsourcepath+newentry)
     def __sortbydate(self):
+        """Summary
+        """
         datearr = np.array([np.array(item["date"].split("/")) for item in self.texdict["notes"]]).T
         ind = np.lexsort((datearr[1],datearr[0],datearr[2]))
         for tgt,cur in enumerate(ind):
@@ -293,6 +330,8 @@ class latexdoc():
             os.rename(self.notespath+currentname,self.notespath+targetname)
         self.texdict["notes"] = (np.array(self.texdict["notes"])[ind]).tolist()    
     def removenotes(self):
+        """Summary
+        """
         archive_note_indices = os.listdir(self.notespath)
         noteinds = [int(note.split("_")[1][:-4]) for note in archive_note_indices]
         noteinds.sort()
@@ -306,6 +345,14 @@ class latexdoc():
         with open((self.projectpath+"notebook.pkl"),"wb") as outfile:
             pkl.dump(self.texdict,outfile)
     def __latexpage(self,noteidx):
+        """Summary
+        
+        Args:
+            noteidx (TYPE): Description
+        
+        Returns:
+            TYPE: Description
+        """
         header = [self.template[26]] + ["\invisiblesection{"+\
         self.texdict["notes"][noteidx]["notetitle"]+"}"] + self.template[28:34]
         body = [" "*20 + "Note: " + self.texdict["notes"][noteidx]["notetitle"] +\
@@ -319,12 +366,19 @@ class latexdoc():
         full =  header+body+closer
         return full
     def __errormsg(self,message):
+        """Summary
+        
+        Args:
+            message (TYPE): Description
+        """
         root = tkinter.Tk()
         tkinter.Label(root, text=message).grid(row=0)
         tkinter.Button(root, text='Done', command=root.quit).grid(row=3, column=0, sticky=tkinter.W, pady=4)
         root.mainloop()
         root.destroy()
     def __checkcorruption(self):
+        """Summary
+        """
         with open((self.projectpath+"notebook.pkl"),"rb") as infile:
             self.texdict = pkl.load(infile)
         dictlen = len(self.texdict["notes"])
@@ -332,13 +386,15 @@ class latexdoc():
         if dictlen != noteslen:
             self.__errormsg("Error: Note number mismatched.")
     def compilelatex(self):
+        """Summary
+        """
         self.__checkcorruption()
         with open((self.notebookpath+"template.tex"),"r") as infile:
             self.template = infile.read().split("\n")
         textitle = ""
         for item in self.texdict["title"]:
             if item == "_":
-                textitle+="\_"
+                textitle+=" "
             else:
                 textitle+=item
         texlist = self.template[:20] + \
@@ -352,6 +408,8 @@ class latexdoc():
         with open((self.projectpath+"notebook.tex"),"w") as outfile:
             outfile.write(outtex)
     def writepdf(self):
+        """Summary
+        """
         command = "pdflatex -aux-directory=" + \
         self.projectpath + "notebook_aux " + \
         "-output-directory=" + \
@@ -359,13 +417,30 @@ class latexdoc():
         self.projectpath + "notebook.tex"
         result = subprocess.call(command,shell=False)
     def makeindex(self):
+        """Summary
+        """
         command = 'makeindex "' + self.projectpath + \
         'notebook_aux/notebook.idx"'
         result = subprocess.call(command,shell=False)
 class updateloop():
+    """Summary
+    
+    Attributes:
+        notebookpath (TYPE): Description
+    """
     def __init__(self,notebookpath):
+        """Summary
+        
+        Args:
+            notebookpath (TYPE): Description
+        """
         self.notebookpath = notebookpath
     def __keyworddatequery(self):
+        """Summary
+        
+        Returns:
+            TYPE: Description
+        """
         root = tkinter.Tk()
         tkinter.Label(root, text="Note Title").grid(row=0)
         tkinter.Label(root, text="Keywords (space delimited)").grid(row=1)
@@ -385,6 +460,11 @@ class updateloop():
         keywords = keywords.split(" ")
         return notetitle,keywords,date
     def __checknewnotes(self,title):
+        """Summary
+        
+        Args:
+            title (TYPE): Description
+        """
         dochandle = latexdoc(self.notebookpath)
         dochandle.loadproject(title)
         titlepath = self.notebookpath+title+"/"
@@ -398,6 +478,14 @@ class updateloop():
             dochandle.addnote(item,notetitle,keywords,date,remove=True,images=False)
         del dochandle
     def __checkmissing(self,title):
+        """Summary
+        
+        Args:
+            title (TYPE): Description
+        
+        Returns:
+            TYPE: Description
+        """
         dochandle = latexdoc(self.notebookpath)
         dochandle.loadproject(title)
         if len(os.listdir(dochandle.notespath)) != len(dochandle.texdict["notes"]):
@@ -406,6 +494,11 @@ class updateloop():
         else:
             return False
     def __compileall(self,title):
+        """Summary
+        
+        Args:
+            title (TYPE): Description
+        """
         dochandle = latexdoc(self.notebookpath)
         dochandle.loadproject(title)
         dochandle.compilelatex()
@@ -413,15 +506,26 @@ class updateloop():
         dochandle.makeindex()
         dochandle.writepdf()
     def __newproject(self,title):
+        """Summary
+        
+        Args:
+            title (TYPE): Description
+        """
         dochandle = latexdoc(self.notebookpath)
         dochandle.newproject(title)
     def __updatetitle(self,title):
+        """Summary
+        
+        Args:
+            title (TYPE): Description
+        """
         dochandle = latexdoc(self.notebookpath)
         dochandle.loadproject(title)
         if dochandle.texdict["title"] != title:
             dochandle.updatetitle()
     def update(self):
-        #check all folders
+        """Summary
+        """
         for title in os.listdir(self.notebookpath):
             compilenotes=False
             titlepath = self.notebookpath+title+"/"
