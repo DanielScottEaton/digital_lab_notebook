@@ -319,6 +319,8 @@ class latexdoc():
         """Summary
         """
         datearr = np.array([np.array(item["date"].split("/")) for item in self.texdict["notes"]]).T
+        if len(datearr) < 1:
+            return
         ind = np.lexsort((datearr[1],datearr[0],datearr[2]))
         for tgt,cur in enumerate(ind):
             currentname = "note_" + str(cur) + ".pdf"
