@@ -419,17 +419,27 @@ class latexdoc():
         result = subprocess.call(command,shell=False)
     def insert_pdf_pages(self):
         toc_length = (len(self.texdict["notes"])-1)//24 + 1
-        position = toc_length + 1
+        start_position = toc_length + 1
         notebook_path = self.projectpath + "notebook.pdf"
         temp_notebook_path = self.projectpath + "notebook_temp.pdf"
-        for noteidx in range(len(self.texdict["notes"])):
-            command = "pdftk A=" + str(notebook_path) + " B=" + str(self.notespath + "note_" +\
-            str(noteidx) + ".pdf") + " cat A1-" + str(position) + " B A" +\
-            str(position+int(self.texdict["notes"][noteidx]["pages"])+1) +\
-            "-end output " + str(temp_notebook_path)
-            result = subprocess.call(command,shell=False)
-            position = position+int(self.texdict["notes"][noteidx]["pages"])
-            os.replace(temp_notebook_path,notebook_path)
+
+        page_len_list = [note["pages"] for note in self.texdict["notes"]]
+        ttl_pages = np.sum(np.array(page_len_list)) + start_position
+
+        command = "pdftk A=" + str(notebook_path) + " cat A1-" + str(start_position) + \
+        " output " + self.projectpath + "TOC_temp.pdf"
+        result = subprocess.call(command,shell=False)
+        command = "pdftk A=" + str(notebook_path) + " cat A" + str(ttl_pages+1) + \
+        "-end output " + self.projectpath + "Index_temp.pdf"
+        result = subprocess.call(command,shell=False)
+        file_list = [self.projectpath + "TOC_temp.pdf"] + [self.notespath + "note_" + str(noteidx) + \
+        ".pdf" for noteidx in range(len(self.texdict["notes"]))] + [self.projectpath + "Index_temp.pdf"]
+        command = "pdftk " + " ".join(file_list) + " cat output " + str(temp_notebook_path)
+        print(command)
+        result = subprocess.call(command,shell=False)
+        os.replace(temp_notebook_path,notebook_path)
+        os.remove(self.projectpath + "TOC_temp.pdf")
+        os.remove(self.projectpath + "Index_temp.pdf")
 class updateloop():
     """Summary
     
