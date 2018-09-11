@@ -355,18 +355,11 @@ class latexdoc():
         Returns:
             TYPE: Description
         """
-        header = [self.template[26]] + ["\invisiblesection{"+\
-        self.texdict["notes"][noteidx]["notetitle"]+"}"] + self.template[28:34]
-        body = [" "*20 + "Note: " + self.texdict["notes"][noteidx]["notetitle"] +\
-        " " + str(noteidx) + "\\\\"," "*20 + "Date: " + \
-        str(self.texdict["notes"][noteidx]["date"]) + "\\\\",\
-        " "*20 + "Keywords: " + " ".join(["\\index{" + item.lower() + "}" + item for item in self.texdict["notes"][noteidx]["keywords"]])]
-        notepath = self.notespath + "note_" + str(noteidx) + ".pdf"
-        closer = self.template[37:41] + ["}]{"+notepath+"}"]
-        if self.texdict["notes"][noteidx]["pages"]>1:
-            closer += ["\\includepdf[pages=2-]{"+notepath+"}"]
-        full =  header+body+closer
-        return full
+        body = ["\\section{"+self.texdict["notes"][noteidx]["notetitle"]+"}"] +\
+        [" ".join(["\\index{" + item.lower() + "}" for item in self.texdict["notes"][noteidx]["keywords"]])] +\
+        ["\\afterpage{\\null\\newpage}" for i in range(int(self.texdict["notes"][noteidx]["pages"])-1)] +\
+        ["\\newpage"]
+        return body
     def __errormsg(self,message):
         """Summary
         
@@ -399,12 +392,12 @@ class latexdoc():
                 textitle+=" "
             else:
                 textitle+=item
-        texlist = self.template[:20] + \
+        texlist = self.template[:17] + \
         ["\\title{"+textitle+"}"] + \
-        self.template[21:26]
+        self.template[18:24]
         for i in range(len(self.texdict["notes"])):
             texlist += self.__latexpage(i)
-        texlist += self.template[43:45]
+        texlist += self.template[28:30]
         del self.template
         outtex = "\n".join(texlist)
         with open((self.projectpath+"notebook.tex"),"w") as outfile:
@@ -424,6 +417,19 @@ class latexdoc():
         command = 'makeindex "' + self.projectpath + \
         'notebook_aux/notebook.idx"'
         result = subprocess.call(command,shell=False)
+    def insert_pdf_pages(self):
+        toc_length = (len(self.texdict["notes"])-1)//24 + 1
+        position = toc_length + 1
+        notebook_path = self.projectpath + "notebook.pdf"
+        temp_notebook_path = self.projectpath + "notebook_temp.pdf"
+        for noteidx in range(len(self.texdict["notes"])):
+            command = "pdftk A=" + str(notebook_path) + " B=" + str(self.notespath + "note_" +\
+            str(noteidx) + ".pdf") + " cat A1-" + str(position) + " B A" +\
+            str(position+int(self.texdict["notes"][noteidx]["pages"])+1) +\
+            "-end output " + str(temp_notebook_path)
+            result = subprocess.call(command,shell=False)
+            position = position+int(self.texdict["notes"][noteidx]["pages"])
+            os.replace(temp_notebook_path,notebook_path)
 class updateloop():
     """Summary
     
@@ -507,6 +513,7 @@ class updateloop():
         dochandle.writepdf()
         dochandle.makeindex()
         dochandle.writepdf()
+        dochandle.insert_pdf_pages()
     def __newproject(self,title):
         """Summary
         

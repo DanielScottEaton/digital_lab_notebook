@@ -4,6 +4,7 @@
 \usepackage{pdfpages}
 \usepackage{color}
 \usepackage{hyperref}
+\usepackage{afterpage}
 \hypersetup{
     colorlinks=true,
     citecolor=black,
@@ -13,10 +14,6 @@
 }
 \usepackage{bookmark}
 \definecolor{bg}{RGB}{255,255,255}
-\newcommand\invisiblesection[1]{
-  \refstepcounter{section}
-  \addcontentsline{toc}{section}{\protect\numberline{\thesection}#1}
-  \sectionmark{#1}}
 \makeindex
 \title{Title}
 \author{Daniel Eaton}
@@ -24,22 +21,10 @@
 \maketitle
 \newpage
 \tableofcontents
-\newpage
-\invisiblesection{Note Title}
-\includepdf[pages=1,pagecommand={
-    \begin{picture}(5,5)(-310,-135)
-        \large
-        \noindent\makebox[1pt][l]{%
-            \parbox[t]{0.44\textwidth}{
-                \begin{flushleft}
-                    Note: Note Title 1\\
-                    Date: 7/20/2018\\
-                    Keywords: \index{Potato} \index{Tomato}
-                \end{flushleft}
-            }
-        }
-    \end{picture}
-}]{test_output}
-\includepdf[pages=2-]{test_output}
-\printindex
+\newpage%%fixed above this
+\section{Note Title}
+\index{moo} \index{moo}%% as many indices here as necessary
+\afterpage{\null\newpage} %%num_pgs - 1 of these
+\newpage %%one of these
+\printindex%%fixed below this
 \end{document}
